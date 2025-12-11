@@ -97,7 +97,7 @@ const generateContent = async (model: string, prompt: string) => {
         try {
             return await ai.models.generateContent({
                 model: model,
-                contents: prompt
+                contents: [{ role: 'user', parts: [{ text: prompt }] }]
             });
         } catch (err: any) {
             // 429 = Too Many Requests
