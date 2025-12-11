@@ -98,7 +98,12 @@ const generateContent = async (model: string, prompt: string) => {
             });
         } catch (err: any) {
             // 429 = Too Many Requests
-            if (err.status === 429 || (err.response && err.response.status === 429)) {
+            const isRateLimit =
+                err.status === 429 ||
+                (err.response && err.response.status === 429) ||
+                (err.message && err.message.includes('429'));
+
+            if (isRateLimit) {
                 console.warn(`Key ...${key.slice(-4)} rate limited. Retrying with next key...`);
                 attempts++;
             } else {
@@ -264,12 +269,19 @@ Answer concisely, polite, Discord-styled, and ONLY based on the event/program da
         await safeReply(message, reply);
 
     } catch (err: any) {
-        console.error(err);
-        if (err && err.status === 429) {
-            // Gemini rate limit: do not send any msg in Discord
+        // Check for rate limit errors (from generateContent or other sources)
+        const isRateLimit =
+            err.status === 429 ||
+            (err.response && err.response.status === 429) ||
+            (err.message && err.message.includes('429')) ||
+            (err.message && err.message.includes('quota'));
+
+        if (isRateLimit) {
+            console.warn('Gemini API rate limit reached. Ignoring message.');
             return;
         }
-        // On other errors, silently do nothing in chat.
+
+        console.error('Error handling message:', err);
     }
 });
 
