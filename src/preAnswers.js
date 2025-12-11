@@ -6,9 +6,9 @@ export function getPreAnswers(eventData = {}) {
     : '- Rules will be announced soon.';
 
   const withNepaliHint = (text) => {
-    // Keep responses primarily English; ~20% chance to add a Nepali-friendly hint.
+    // Keep responses primarily English; ~20% chance to add a short Nepali hint.
     if (Math.random() < 0.2) {
-      return `${text}\n*Note: अपडेट भए तुरुन्तै यहाँ share गर्छु।*`;
+      return `${text}\n*upd भयो भने चाँडै drop गर्छु*`;
     }
     return text;
   };
@@ -16,11 +16,11 @@ export function getPreAnswers(eventData = {}) {
   return [
     {
       patterns: [/when.*event.*start/i, /start time/i, /kab.*shuru/i, /shuru kab/i, /kahile.*suru/i],
-      answer: withNepaliHint('**Event Start:** Not announced yet. Will drop it here as soon as it’s out. 🙏')
+      answer: withNepaliHint('**Event Start:** Not announced yet. Will share as soon as it’s out. 🙏')
     },
     {
       patterns: [/what is (this )?event/i, /tell me about the event/i, /minecraft civilization/i],
-      answer: withNepaliHint('**About Event:**\n- Multi-day Minecraft Civilization vibes\n- Flow: settle → diplomacy → battle → trade\n- Stay chill, have fun ✨')
+      answer: withNepaliHint('**About Event:**\n- Multi-day Minecraft Civilization vibes\n- Flow: settle → diplomacy → battle → trade\n- Chill, have fun ✨')
     },
     {
       patterns: [/day\s*1\b/i, /\bfirst day\b/i, /\bday one\b/i],
