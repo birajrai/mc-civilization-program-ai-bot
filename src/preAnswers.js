@@ -16,7 +16,7 @@ export function getPreAnswers(eventData = {}, channels = {}, links = {}) {
   return [
     {
       patterns: [/when.*event.*start/i, /start time/i, /kab.*shuru/i, /shuru kab/i, /kahile.*suru/i],
-      answer: withNepaliHint('**Event Start:** Not announced yet. Will share as soon as it’s out. 🙏')
+      answer: withNepaliHint(`**Event Start:** Not announced yet. Will announce soon—keep an eye on <#${channels.announcement || 'announcements'}>. 🙏`)
     },
     {
       patterns: [/what is (this )?event/i, /tell me about the event/i, /minecraft civilization/i],
