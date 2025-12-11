@@ -81,23 +81,32 @@ if (apiKeys.length === 0) {
 
 let keyIndex = 0;
 
+<<<<<<< Updated upstream:src/index.ts
 const generateContent = async (model: string, prompt: string) => {
     if (apiKeys.length === 0) throw new Error('No API keys configured');
+=======
+// Initialize clients once
+const genAIClients = apiKeys.map(key => new GoogleGenAI({ apiKey: key }));
+
+const generateContent = async (model, prompt) => {
+    if (genAIClients.length === 0) throw new Error('No API keys configured');
+>>>>>>> Stashed changes:src/index.js
 
     let attempts = 0;
     // Try each key at most once per request
-    while (attempts < apiKeys.length) {
-        const key = apiKeys[keyIndex];
-        keyIndex = (keyIndex + 1) % apiKeys.length; // Rotate
+    while (attempts < genAIClients.length) {
+        const currentKeyIndex = keyIndex;
+        const ai = genAIClients[currentKeyIndex];
+        keyIndex = (keyIndex + 1) % genAIClients.length; // Rotate
 
         try {
-            const ai = new GoogleGenAI({ apiKey: key });
             return await ai.models.generateContent({
                 model: model,
                 contents: prompt
             });
         } catch (err: any) {
             // 429 = Too Many Requests
+<<<<<<< Updated upstream:src/index.ts
             const isRateLimit =
                 err.status === 429 ||
                 (err.response && err.response.status === 429) ||
@@ -105,6 +114,11 @@ const generateContent = async (model: string, prompt: string) => {
 
             if (isRateLimit) {
                 console.warn(`Key ...${key.slice(-4)} rate limited. Retrying with next key...`);
+=======
+            if (err.status === 429 || (err.response && err.response.status === 429)) {
+                // Mask key for logging
+                console.warn(`Key at index ${currentKeyIndex} rate limited. Retrying with next key...`);
+>>>>>>> Stashed changes:src/index.js
                 attempts++;
             } else {
                 throw err; // Not a rate limit, rethrow
@@ -258,9 +272,10 @@ Schedule Message:
 User message: ${message.content}
 Answer concisely, polite, Discord-styled, and ONLY based on the event/program data.`;
 
-        const response = await generateContent('gemini-2.5-flash', prompt);
+        const response = await generateContent('gemini-1.5-flash', prompt);
 
-        const reply = response.text || "I can only answer about the Minecraft event/program.";
+        const replyText = typeof response.text === 'function' ? response.text() : response.text;
+        const reply = replyText || "I can only answer about the Minecraft event/program.";
         responseCache.set(inputKey, reply);
         if (responseCache.size > CACHE_LIMIT) {
             const oldestKey = responseCache.keys().next().value;
