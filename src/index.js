@@ -142,6 +142,8 @@ client.on('messageCreate', async (message) => {
     // Ignore messages not in the event channel (if configured)
     if (CHANNEL_ID && message.channel.id !== CHANNEL_ID) return;
 
+    let pending = null;
+
     try {
         // Pre-answered FAQs to avoid AI calls
         const preAnswer = findPreAnswer(message.content);
@@ -157,7 +159,7 @@ client.on('messageCreate', async (message) => {
         }
 
         // Send quick typing placeholder
-        const pending = await safeReply(message, 'Ekxin ma msg lekhdai xu...');
+        pending = await safeReply(message, 'Ekxin ma msg lekhdai xu...');
 
         // Construct prompt with local memory
         const prompt = `
@@ -198,7 +200,12 @@ Answer concisely, polite, Discord-styled, and ONLY based on the event/program da
 
     } catch (err) {
         console.error(err);
-        await safeReply(message, "Something went wrong while connecting to Gemini AI.");
+        const pauseMsg = "Not chatting right now—taking a breather (annoyed at <@835126233455919164>).";
+        if (pending) {
+            await safeEdit(pending, pauseMsg);
+        } else {
+            await safeReply(message, pauseMsg);
+        }
     }
 });
 
