@@ -30,9 +30,33 @@ const isMathOrCode = (content) => {
 };
 
 const loadEventData = async () => {
-    const url = `${pathToFileURL(eventDataPath).href}?t=${Date.now()}`;
-    const mod = await import(url);
-    return mod.default || mod.eventData || {};
+    try {
+        const url = `${pathToFileURL(eventDataPath).href}?t=${Date.now()}`;
+        const mod = await import(url);
+        return mod.default || mod.eventData || {};
+    } catch (err) {
+        console.error('Failed to load eventData:', err);
+        return { days: {}, rules: [] };
+    }
+};
+
+const safeReply = async (target, text) => {
+    try {
+        return await target.reply(text);
+    } catch (err) {
+        console.error('Failed to send reply:', err);
+        return null;
+    }
+};
+
+const safeEdit = async (target, text) => {
+    if (!target) return;
+    try {
+        return await target.edit(text);
+    } catch (err) {
+        console.error('Failed to edit message:', err);
+        return null;
+    }
 };
 
 // Load local event memory
@@ -41,9 +65,13 @@ let preAnswers = getPreAnswers(eventData, CHANNEL_IDS, LINKS);
 
 // Hot reload on file change
 fs.watchFile(eventDataPath, async () => {
-    console.log('Event data updated!');
-    eventData = await loadEventData();
-    preAnswers = getPreAnswers(eventData, CHANNEL_IDS, LINKS);
+    try {
+        console.log('Event data updated!');
+        eventData = await loadEventData();
+        preAnswers = getPreAnswers(eventData, CHANNEL_IDS, LINKS);
+    } catch (err) {
+        console.error('Failed to reload eventData:', err);
+    }
 });
 
 // Initialize Gemini AI client (reads GEMINI_API_KEY from .env)
@@ -60,6 +88,14 @@ const client = new Client({
 });
 
 const CHANNEL_ID = process.env.EVENT_CHANNEL_ID;
+
+if (!process.env.DISCORD_TOKEN) {
+    console.error('DISCORD_TOKEN missing in environment. Bot will not start.');
+}
+
+if (!CHANNEL_ID) {
+    console.error('EVENT_CHANNEL_ID missing in environment. Bot will ignore channel filtering.');
+}
 const badWords = [
     'fuck', 'shit', 'bitch', 'asshole', 'bastard', 'cunt', 'dick', 'piss', 'damn',
     // Hindi/Nepali bad words (still blocked, but not used elsewhere)
@@ -103,25 +139,25 @@ client.on('messageCreate', async (message) => {
         return;
     }
 
-    // Ignore messages not in the event channel
-    if (message.channel.id !== CHANNEL_ID) return;
+    // Ignore messages not in the event channel (if configured)
+    if (CHANNEL_ID && message.channel.id !== CHANNEL_ID) return;
 
     try {
         // Pre-answered FAQs to avoid AI calls
         const preAnswer = findPreAnswer(message.content);
         if (preAnswer) {
-            await message.reply(preAnswer);
+            await safeReply(message, preAnswer);
             return;
         }
 
         // Decline math/coding help
         if (isMathOrCode(message.content)) {
-            await message.reply('Hey! I’m Maya. I don’t do math or coding help, but happy to chat about the event or other chill topics.');
+            await safeReply(message, "Hey! I'm Maya. I skip math/coding asks, but happy to chat event stuff or any chill topic—food, games, life vibes.");
             return;
         }
 
         // Send quick typing placeholder
-        const pending = await message.reply('Ekxin ma msg lekhdai xu...');
+        const pending = await safeReply(message, 'Ekxin ma msg lekhdai xu...');
 
         // Construct prompt with local memory
         const prompt = `
@@ -158,12 +194,14 @@ Answer concisely, polite, Discord-styled, and ONLY based on the event/program da
         });
 
         const reply = response.text || "I can only answer about the Minecraft event/program.";
-        await pending.edit(reply);
+        await safeEdit(pending, reply);
 
     } catch (err) {
         console.error(err);
-        await message.reply("Something went wrong while connecting to Gemini AI.");
+        await safeReply(message, "Something went wrong while connecting to Gemini AI.");
     }
 });
 
-client.login(process.env.DISCORD_TOKEN);
+client.login(process.env.DISCORD_TOKEN).catch((err) => {
+    console.error('Failed to login to Discord:', err);
+});
