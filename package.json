@@ -3,9 +3,9 @@
   "version": "1.0.0",
   "description": "A Discord bot for the Minecraft Civilization program",
   "type": "module",
-  "main": "index.js",
+  "main": "src/index.js",
   "scripts": {
-    "start": "node index.js"
+    "start": "node src/index.js"
   },
   "repository": {
     "type": "git",
