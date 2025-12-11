@@ -74,8 +74,44 @@ fs.watchFile(eventDataPath, async () => {
     }
 });
 
-// Initialize Gemini AI client (reads GEMINI_API_KEY from .env)
-const ai = new GoogleGenAI({});
+// Initialize Gemini AI client with key rotation
+const apiKeys = process.env.GEMINI_API_KEYS 
+    ? process.env.GEMINI_API_KEYS.split(',').map(k => k.trim()).filter(k => k)
+    : (process.env.GEMINI_API_KEY ? [process.env.GEMINI_API_KEY] : []);
+
+if (apiKeys.length === 0) {
+    console.error('No GEMINI_API_KEYS or GEMINI_API_KEY found. AI features will fail.');
+}
+
+let keyIndex = 0;
+
+const generateContent = async (model, prompt) => {
+    if (apiKeys.length === 0) throw new Error('No API keys configured');
+    
+    let attempts = 0;
+    // Try each key at most once per request
+    while (attempts < apiKeys.length) {
+        const key = apiKeys[keyIndex];
+        keyIndex = (keyIndex + 1) % apiKeys.length; // Rotate
+        
+        try {
+            const ai = new GoogleGenAI({ apiKey: key });
+            return await ai.models.generateContent({
+                model: model,
+                contents: prompt
+            });
+        } catch (err) {
+            // 429 = Too Many Requests
+            if (err.status === 429 || (err.response && err.response.status === 429)) {
+                console.warn(`Key ...${key.slice(-4)} rate limited. Retrying with next key...`);
+                attempts++;
+            } else {
+                throw err; // Not a rate limit, rethrow
+            }
+        }
+    }
+    throw new Error('All Gemini API keys are rate limited.');
+};
 
 const client = new Client({
     intents: [
@@ -210,10 +246,7 @@ Schedule Message:
 User message: ${message.content}
 Answer concisely, polite, Discord-styled, and ONLY based on the event/program data.`;
 
-        const response = await ai.models.generateContent({
-            model: 'gemini-2.5-flash',
-            contents: prompt
-        });
+        const response = await generateContent('gemini-2.5-flash', prompt);
 
         const reply = response.text || "I can only answer about the Minecraft event/program.";
         responseCache.set(inputKey, reply);
