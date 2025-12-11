@@ -158,8 +158,7 @@ client.on('messageCreate', async (message) => {
             return;
         }
 
-        // Send quick typing placeholder
-        pending = await safeReply(message, 'Ekxin ma msg lekhdai xu...');
+        // No static/pending message, send only final reply.
 
         // Construct prompt with local memory
         const prompt = `
@@ -196,7 +195,7 @@ Answer concisely, polite, Discord-styled, and ONLY based on the event/program da
         });
 
         const reply = response.text || "I can only answer about the Minecraft event/program.";
-        await safeEdit(pending, reply);
+        await safeReply(message, reply);
 
     } catch (err) {
         console.error(err);
@@ -205,11 +204,7 @@ Answer concisely, polite, Discord-styled, and ONLY based on the event/program da
             return;
         }
         const pauseMsg = "Not chatting right now—taking a breather (annoyed at <@835126233455919164>).";
-        if (pending) {
-            await safeEdit(pending, pauseMsg);
-        } else {
-            await safeReply(message, pauseMsg);
-        }
+        await safeReply(message, pauseMsg);
     }
 });
 
