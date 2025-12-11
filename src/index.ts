@@ -12,7 +12,7 @@ dotenv.config();
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 // We point to the compiled JS file for the dynamic reload to work in the build
-const eventDataPath = path.join(__dirname, 'eventData.js');
+const eventDataPath = path.join(__dirname, 'eventData.ts');
 
 const CHANNEL_IDS = {
     rules: '1448585591406202880',
@@ -81,16 +81,11 @@ if (apiKeys.length === 0) {
 
 let keyIndex = 0;
 
-<<<<<<< Updated upstream:src/index.ts
-const generateContent = async (model: string, prompt: string) => {
-    if (apiKeys.length === 0) throw new Error('No API keys configured');
-=======
 // Initialize clients once
 const genAIClients = apiKeys.map(key => new GoogleGenAI({ apiKey: key }));
 
-const generateContent = async (model, prompt) => {
+const generateContent = async (model: string, prompt: string) => {
     if (genAIClients.length === 0) throw new Error('No API keys configured');
->>>>>>> Stashed changes:src/index.js
 
     let attempts = 0;
     // Try each key at most once per request
@@ -106,19 +101,14 @@ const generateContent = async (model, prompt) => {
             });
         } catch (err: any) {
             // 429 = Too Many Requests
-<<<<<<< Updated upstream:src/index.ts
             const isRateLimit =
                 err.status === 429 ||
                 (err.response && err.response.status === 429) ||
                 (err.message && err.message.includes('429'));
 
             if (isRateLimit) {
-                console.warn(`Key ...${key.slice(-4)} rate limited. Retrying with next key...`);
-=======
-            if (err.status === 429 || (err.response && err.response.status === 429)) {
                 // Mask key for logging
                 console.warn(`Key at index ${currentKeyIndex} rate limited. Retrying with next key...`);
->>>>>>> Stashed changes:src/index.js
                 attempts++;
             } else {
                 throw err; // Not a rate limit, rethrow
@@ -274,7 +264,7 @@ Answer concisely, polite, Discord-styled, and ONLY based on the event/program da
 
         const response = await generateContent('gemini-1.5-flash', prompt);
 
-        const replyText = typeof response.text === 'function' ? response.text() : response.text;
+        const replyText = response.text;
         const reply = replyText || "I can only answer about the Minecraft event/program.";
         responseCache.set(inputKey, reply);
         if (responseCache.size > CACHE_LIMIT) {
