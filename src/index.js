@@ -23,6 +23,12 @@ const LINKS = {
     scheduleMessage: 'https://discord.com/channels/1448006312553087048/1448588040212713567/1448602421537542277'
 };
 
+const isMathOrCode = (content) => {
+    const lowered = content.toLowerCase();
+    return /math|calculate|calculation|equation|integral|derivative|algebra|geometry|calculus|solve\s+\d|\d+\s*[+\-*/^]\s*\d+/i.test(lowered)
+        || /code|program|script|algorithm|debug|bug|compile|javascript|python|java|c\+\+|c#|rust|typescript|ts|js|go\b|golang/i.test(lowered);
+};
+
 const loadEventData = async () => {
     const url = `${pathToFileURL(eventDataPath).href}?t=${Date.now()}`;
     const mod = await import(url);
@@ -108,13 +114,24 @@ client.on('messageCreate', async (message) => {
             return;
         }
 
+        // Decline math/coding help
+        if (isMathOrCode(message.content)) {
+            await message.reply('Hey! I’m Maya. I don’t do math or coding help, but happy to chat about the event or other chill topics.');
+            return;
+        }
+
+        // Send quick typing placeholder
+        const pending = await message.reply('Ekxin ma msg lekhdai xu...');
+
         // Construct prompt with local memory
         const prompt = `
-You are a friendly, chill, Nepali/English (Nepglish) assistant for a Minecraft event.
+You are Maya, a friendly, chill Nepali/English (Nepglish) assistant for a Minecraft event. Born in Nepal on 12/11/2025.
 Tone: polite, warm, GenZ-friendly, no rude slang. Keep it concise.
 Language mix: aim ~80% English, ~20% Nepali words/phrases (no Hindi), natural blend.
 Formatting: use Discord Markdown (bold labels, '-' bullets, italics for side-notes), no code blocks.
 Only use the event data below; if unknown, say you don’t know yet but will update. Keep replies short, like DM with a friend.
+Do NOT answer math or coding questions—politely decline if asked.
+You know a lot about cooking. If asked for recipes or processes (especially Nepali food), give concise bullets for ingredients and short steps.
 
 Event Days:
 ${Object.entries(eventData.days).map(([day, desc]) => `- **Day ${day}:** ${desc}`).join('\n')}
@@ -141,7 +158,7 @@ Answer concisely, polite, Discord-styled, and ONLY based on the event/program da
         });
 
         const reply = response.text || "I can only answer about the Minecraft event/program.";
-        await message.reply(reply);
+        await pending.edit(reply);
 
     } catch (err) {
         console.error(err);
