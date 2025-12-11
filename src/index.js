@@ -200,6 +200,10 @@ Answer concisely, polite, Discord-styled, and ONLY based on the event/program da
 
     } catch (err) {
         console.error(err);
+        if (err && err.status === 429) {
+            // Gemini rate limit: do not send any msg in Discord
+            return;
+        }
         const pauseMsg = "Not chatting right now—taking a breather (annoyed at <@835126233455919164>).";
         if (pending) {
             await safeEdit(pending, pauseMsg);
