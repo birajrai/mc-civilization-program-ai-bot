@@ -1,68 +1,78 @@
 export function getPreAnswers(eventData = {}) {
   const days = eventData.days || {};
   const rules = eventData.rules || [];
-  const ruleList = rules.length ? rules.map((r, i) => `${i + 1}. ${r}`).join('\n') : 'Rules will be announced soon.';
+  const ruleList = rules.length
+    ? rules.map((r) => `- ${r}`).join('\n')
+    : '- Rules will be announced soon.';
+
+  const withNepaliHint = (text) => {
+    // Keep responses primarily English; ~20% chance to add a Nepali-friendly hint.
+    if (Math.random() < 0.2) {
+      return `${text}\n*Note: अपडेट भए तुरुन्तै यहाँ share गर्छु।*`;
+    }
+    return text;
+  };
 
   return [
     {
       patterns: [/when.*event.*start/i, /start time/i, /kab.*shuru/i, /shuru kab/i, /kahile.*suru/i],
-      answer: 'I do not know when the event starts yet, but I will share it once it is announced.'
+      answer: withNepaliHint('**Event Start:** Not announced yet. Will drop it here as soon as it’s out. 🙏')
     },
     {
       patterns: [/what is (this )?event/i, /tell me about the event/i, /minecraft civilization/i],
-      answer: 'This is a multi-day Minecraft Civilization program with phases for settling, diplomacy, battle, and trading.'
+      answer: withNepaliHint('**About Event:**\n- Multi-day Minecraft Civilization vibes\n- Flow: settle → diplomacy → battle → trade\n- Stay chill, have fun ✨')
     },
     {
       patterns: [/day\s*1\b/i, /\bfirst day\b/i, /\bday one\b/i],
-      answer: `Day 1: ${days['1'] || 'Details coming soon.'}`
+      answer: withNepaliHint(`**Day 1 (Peace & Settlement):**\n- ${days['1'] || 'Details coming soon.'}`)
     },
     {
       patterns: [/day\s*2\b/i, /\bsecond day\b/i, /\bday two\b/i],
-      answer: `Day 2: ${days['2'] || 'Details coming soon.'}`
+      answer: withNepaliHint(`**Day 2 (Diplomacy & Expansion):**\n- ${days['2'] || 'Details coming soon.'}`)
     },
     {
       patterns: [/day\s*3\b/i, /\bthird day\b/i, /\bday three\b/i, /battle day/i, /pvp day/i],
-      answer: `Day 3: ${days['3'] || 'Details coming soon.'} (PvP enabled).`
+      answer: withNepaliHint(`**Day 3 (Battle):**\n- ${days['3'] || 'Details coming soon.'}\n- PvP enabled, stay sharp!`)
     },
     {
       patterns: [/day\s*4\b/i, /\bfourth day\b/i, /\bday four\b/i, /trade day/i],
-      answer: `Day 4: ${days['4'] || 'Details coming soon.'}`
+      answer: withNepaliHint(`**Day 4 (Trade & Alliance):**\n- ${days['4'] || 'Details coming soon.'}`)
     },
     {
       patterns: [/rules?/i, /what.*allowed/i, /what.*not allowed/i],
-      answer: `Rules:\n${ruleList}`
+      answer: withNepaliHint(`**Rules (pls keep it clean):**\n${ruleList}`)
     },
     {
       patterns: [/pvp.*when/i, /when.*pvp/i, /pvp enabled/i],
-      answer: 'PvP is planned for Battle Day (Day 3).'
+      answer: withNepaliHint('**PvP:** Only on Battle Day (Day 3). बाकी दिन chill pls. 😌')
     },
     {
       patterns: [/roles?/i, /assign.*role/i, /what role/i],
-      answer: 'Roles are assigned during Day 2 to organize teams and responsibilities.'
+      answer: withNepaliHint('**Roles:** Assigned on Day 2 so squads stay organized. Teamwork ftw. 🫡')
     },
     {
       patterns: [/how.*join/i, /can i join/i, /participate/i],
-      answer: 'Join details will be posted in the event channel. Please wait for the announcement and follow the instructions there.'
+      answer: withNepaliHint('**Join:** Info will drop in the event channel soon. Hang tight and follow the steps once posted. 🙌')
     },
     {
       patterns: [/server.*ip/i, /server address/i, /ip address/i],
-      answer: 'The server IP will be shared privately with participants closer to the start.'
+      answer: withNepaliHint('**Server IP:** Shared privately with confirmed participants closer to start time. 🔒')
     },
     {
       patterns: [/version/i, /java or bedrock/i],
-      answer: 'The server version and platform details will be announced with the server info.'
+      answer: withNepaliHint('**Version:** Java/Bedrock details will be announced with the server info. Sit tight. 🎮')
     },
     {
       patterns: [/voice/i, /\bvc\b/i, /discord call/i],
-      answer: 'Use the event Discord voice channels as instructed by the staff for coordination.'
+      answer: withNepaliHint('**Voice/VC:** Hop into event voice channels when staff says. Keep it chill. 🎙️')
     },
     {
       patterns: [/timezone/i, /time zone/i],
-      answer: 'Event times will be announced with timezone details so everyone can sync up.'
+      answer: withNepaliHint('**Timezones:** Schedule will include TZ info so everyone can sync. Wait for the post. 🕒')
     },
     {
       patterns: [/end time/i, /when.*end/i, /how long/i, /duration/i],
-      answer: 'The event duration and end time will be shared along with the start schedule.'
+      answer: withNepaliHint('**Duration/End:** Will be shared with the start schedule. We’ll keep you posted. 🗓️')
     }
   ];
 }
