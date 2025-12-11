@@ -44,6 +44,7 @@ const client = new Client({
 const CHANNEL_ID = process.env.EVENT_CHANNEL_ID;
 const badWords = [
     'fuck', 'shit', 'bitch', 'asshole', 'bastard', 'cunt', 'dick', 'piss', 'damn',
+    // Hindi/Nepali bad words (still blocked, but not used elsewhere)
     'mc', 'g***u', 'chutiya', 'madarchod', 'behenchod', 'randi', 'bhenchod', 'gand',
     'kutte', 'kutta', 'launda', 'laundi', 'loda', 'lund', 'suar', 'bhainsa', 'boka',
     'saala', 'sala', 'harami', 'lattu', 'lora'
@@ -97,18 +98,20 @@ client.on('messageCreate', async (message) => {
 
         // Construct prompt with local memory
         const prompt = `
-You are a helpful assistant for my Minecraft event/program.
-Use ONLY the following event data to answer. Do not mention anything outside this data.
+You are a friendly, chill, Nepali/English (Nepglish) assistant for a Minecraft event.
+Tone: polite, warm, GenZ-friendly, no rude slang. Keep it concise.
+Language mix: aim ~80% English, ~20% Nepali words/phrases (no Hindi), natural blend.
+Formatting: use Discord Markdown (bold labels, '-' bullets, italics for side-notes), no code blocks.
+Only use the event data below; if unknown, say you don’t know yet but will update.
 
 Event Days:
-${Object.entries(eventData.days).map(([day, desc]) => `Day ${day}: ${desc}`).join('\n')}
+${Object.entries(eventData.days).map(([day, desc]) => `- **Day ${day}:** ${desc}`).join('\n')}
 
 Event Rules:
-${eventData.rules.map((r, i) => `${i + 1}. ${r}`).join('\n')}
+${eventData.rules.map((r) => `- ${r}`).join('\n')}
 
 User message: ${message.content}
-Answer concisely and ONLY based on the event/program data.
-        `;
+Answer concisely, polite, Discord-styled, and ONLY based on the event/program data.`;
 
         const response = await ai.models.generateContent({
             model: 'gemini-2.5-flash',
