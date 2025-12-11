@@ -75,7 +75,7 @@ fs.watchFile(eventDataPath, async () => {
 });
 
 // Initialize Gemini AI client with key rotation
-const apiKeys = process.env.GEMINI_API_KEYS 
+const apiKeys = process.env.GEMINI_API_KEYS
     ? process.env.GEMINI_API_KEYS.split(',').map(k => k.trim()).filter(k => k)
     : (process.env.GEMINI_API_KEY ? [process.env.GEMINI_API_KEY] : []);
 
@@ -87,13 +87,13 @@ let keyIndex = 0;
 
 const generateContent = async (model, prompt) => {
     if (apiKeys.length === 0) throw new Error('No API keys configured');
-    
+
     let attempts = 0;
     // Try each key at most once per request
     while (attempts < apiKeys.length) {
         const key = apiKeys[keyIndex];
         keyIndex = (keyIndex + 1) % apiKeys.length; // Rotate
-        
+
         try {
             const ai = new GoogleGenAI({ apiKey: key });
             return await ai.models.generateContent({
