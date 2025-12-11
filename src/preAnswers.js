@@ -1,4 +1,4 @@
-export function getPreAnswers(eventData = {}) {
+export function getPreAnswers(eventData = {}, channels = {}, links = {}) {
   const days = eventData.days || {};
   const rules = eventData.rules || [];
   const ruleList = rules.length
@@ -6,9 +6,9 @@ export function getPreAnswers(eventData = {}) {
     : '- Rules will be announced soon.';
 
   const withNepaliHint = (text) => {
-    // Keep responses primarily English; ~20% chance to add a short Nepali hint.
+    // Keep responses primarily English; ~20% chance to add a short Nepali-English hint (Latin only).
     if (Math.random() < 0.2) {
-      return `${text}\n*upd भयो भने चाँडै drop गर्छु*`;
+      return `${text}\n*update bhayo bhane chadai drop gardinchu*`;
     }
     return text;
   };
@@ -40,7 +40,11 @@ export function getPreAnswers(eventData = {}) {
     },
     {
       patterns: [/rules?/i, /what.*allowed/i, /what.*not allowed/i],
-      answer: withNepaliHint(`**Rules (pls keep it clean):**\n${ruleList}`)
+      answer: withNepaliHint(`**Rules (pls keep it clean):**\n${ruleList}\n- Full rules are pinned in <#${channels.rules || 'rules-channel'}>.`)
+    },
+    {
+      patterns: [/schedule/i, /timetable/i, /plan for days?/i],
+      answer: withNepaliHint(`**Schedule:** Check <#${channels.schedule || 'schedule-channel'}> or the pinned post: ${links.scheduleMessage || ''}`)
     },
     {
       patterns: [/pvp.*when/i, /when.*pvp/i, /pvp enabled/i],
