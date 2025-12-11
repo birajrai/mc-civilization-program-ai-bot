@@ -11,6 +11,18 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const eventDataPath = path.join(__dirname, 'eventData.js');
 
+const CHANNEL_IDS = {
+    rules: '1448585591406202880',
+    schedule: '1448588040212713567',
+    registration: '1448586387128455258',
+    poll: '1448611140421550172',
+    announcement: '1448586295323398205'
+};
+
+const LINKS = {
+    scheduleMessage: 'https://discord.com/channels/1448006312553087048/1448588040212713567/1448602421537542277'
+};
+
 const loadEventData = async () => {
     const url = `${pathToFileURL(eventDataPath).href}?t=${Date.now()}`;
     const mod = await import(url);
@@ -19,13 +31,13 @@ const loadEventData = async () => {
 
 // Load local event memory
 let eventData = await loadEventData();
-let preAnswers = getPreAnswers(eventData);
+let preAnswers = getPreAnswers(eventData, CHANNEL_IDS, LINKS);
 
 // Hot reload on file change
 fs.watchFile(eventDataPath, async () => {
     console.log('Event data updated!');
     eventData = await loadEventData();
-    preAnswers = getPreAnswers(eventData);
+    preAnswers = getPreAnswers(eventData, CHANNEL_IDS, LINKS);
 });
 
 // Initialize Gemini AI client (reads GEMINI_API_KEY from .env)
@@ -109,6 +121,16 @@ ${Object.entries(eventData.days).map(([day, desc]) => `- **Day ${day}:** ${desc}
 
 Event Rules:
 ${eventData.rules.map((r) => `- ${r}`).join('\n')}
+
+Event Channels:
+- Rules: <#${CHANNEL_IDS.rules}>
+- Schedule: <#${CHANNEL_IDS.schedule}>
+- Registration: <#${CHANNEL_IDS.registration}>
+- Polls: <#${CHANNEL_IDS.poll}>
+- Announcements: <#${CHANNEL_IDS.announcement}>
+
+Schedule Message:
+- ${LINKS.scheduleMessage}
 
 User message: ${message.content}
 Answer concisely, polite, Discord-styled, and ONLY based on the event/program data.`;
