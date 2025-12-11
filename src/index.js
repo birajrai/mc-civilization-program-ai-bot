@@ -114,6 +114,10 @@ const findPreAnswer = (content) => {
     return null;
 };
 
+// Simple in-memory cache for prompt responses (messageText -> botReply)
+const responseCache = new Map();
+const CACHE_LIMIT = 100;
+
 client.once(Events.ClientReady, (readyClient) => {
     console.log(`Logged in as ${readyClient.user.tag}`);
 });
@@ -121,6 +125,13 @@ client.once(Events.ClientReady, (readyClient) => {
 client.on('messageCreate', async (message) => {
     // Ignore bot messages
     if (message.author.bot) return;
+
+    // Check in-memory cache for repeated prompts
+    const inputKey = message.content.trim().toLowerCase();
+    if (responseCache.has(inputKey)) {
+        await safeReply(message, responseCache.get(inputKey));
+        return;
+    }
 
     // Basic profanity filter: delete message and DM user politely
     const lowered = message.content.toLowerCase();
@@ -148,13 +159,23 @@ client.on('messageCreate', async (message) => {
         // Pre-answered FAQs to avoid AI calls
         const preAnswer = findPreAnswer(message.content);
         if (preAnswer) {
+            responseCache.set(inputKey, preAnswer);
+            if (responseCache.size > CACHE_LIMIT) {
+                // Remove oldest
+                responseCache.delete(responseCache.keys().next().value);
+            }
             await safeReply(message, preAnswer);
             return;
         }
 
         // Decline math/coding help
         if (isMathOrCode(message.content)) {
-            await safeReply(message, "Hey! I'm Maya. I skip math/coding asks, but happy to chat event stuff or any chill topic—food, games, life vibes.");
+            const mathMsg = "Hey! I'm Maya. I skip math/coding asks, but happy to chat event stuff or any chill topic—food, games, life vibes.";
+            responseCache.set(inputKey, mathMsg);
+            if (responseCache.size > CACHE_LIMIT) {
+                responseCache.delete(responseCache.keys().next().value);
+            }
+            await safeReply(message, mathMsg);
             return;
         }
 
@@ -195,6 +216,10 @@ Answer concisely, polite, Discord-styled, and ONLY based on the event/program da
         });
 
         const reply = response.text || "I can only answer about the Minecraft event/program.";
+        responseCache.set(inputKey, reply);
+        if (responseCache.size > CACHE_LIMIT) {
+            responseCache.delete(responseCache.keys().next().value);
+        }
         await safeReply(message, reply);
 
     } catch (err) {
@@ -203,8 +228,7 @@ Answer concisely, polite, Discord-styled, and ONLY based on the event/program da
             // Gemini rate limit: do not send any msg in Discord
             return;
         }
-        const pauseMsg = "Not chatting right now—taking a breather (annoyed at <@835126233455919164>).";
-        await safeReply(message, pauseMsg);
+        // On other errors, silently do nothing in chat.
     }
 });
 
