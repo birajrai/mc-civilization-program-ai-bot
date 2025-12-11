@@ -1,14 +1,17 @@
-import { Client, Events, GatewayIntentBits, Partials } from 'discord.js';
+import { Client, Events, GatewayIntentBits, Partials, Message, TextChannel, DMChannel, NewsChannel } from 'discord.js';
 import { GoogleGenAI } from '@google/genai';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath, pathToFileURL } from 'url';
 import dotenv from 'dotenv';
 import { getPreAnswers } from './preAnswers.js';
+import { EventData } from './eventData.js';
+
 dotenv.config();
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+// We point to the compiled JS file for the dynamic reload to work in the build
 const eventDataPath = path.join(__dirname, 'eventData.js');
 
 const CHANNEL_IDS = {
@@ -23,14 +26,17 @@ const LINKS = {
     scheduleMessage: 'https://discord.com/channels/1448006312553087048/1448588040212713567/1448602421537542277'
 };
 
-const isMathOrCode = (content) => {
+const isMathOrCode = (content: string): boolean => {
     const lowered = content.toLowerCase();
     return /math|calculate|calculation|equation|integral|derivative|algebra|geometry|calculus|solve\s+\d|\d+\s*[+\-*/^]\s*\d+/i.test(lowered)
         || /code|program|script|algorithm|debug|bug|compile|javascript|python|java|c\+\+|c#|rust|typescript|ts|js|go\b|golang/i.test(lowered);
 };
 
-const loadEventData = async () => {
+const loadEventData = async (): Promise<EventData> => {
     try {
+        // In development with ts-node, this might be tricky, but for production build it works.
+        // We check if the file exists, if not we might be in TS source mode without build.
+        // But let's assume standard usage.
         const url = `${pathToFileURL(eventDataPath).href}?t=${Date.now()}`;
         const mod = await import(url);
         return mod.default || mod.eventData || {};
@@ -40,7 +46,7 @@ const loadEventData = async () => {
     }
 };
 
-const safeReply = async (target, text) => {
+const safeReply = async (target: Message, text: string): Promise<Message | null> => {
     try {
         return await target.reply(text);
     } catch (err) {
@@ -49,18 +55,8 @@ const safeReply = async (target, text) => {
     }
 };
 
-const safeEdit = async (target, text) => {
-    if (!target) return;
-    try {
-        return await target.edit(text);
-    } catch (err) {
-        console.error('Failed to edit message:', err);
-        return null;
-    }
-};
-
 // Load local event memory
-let eventData = await loadEventData();
+let eventData: EventData = await loadEventData();
 let preAnswers = getPreAnswers(eventData, CHANNEL_IDS, LINKS);
 
 // Hot reload on file change
@@ -85,7 +81,7 @@ if (apiKeys.length === 0) {
 
 let keyIndex = 0;
 
-const generateContent = async (model, prompt) => {
+const generateContent = async (model: string, prompt: string) => {
     if (apiKeys.length === 0) throw new Error('No API keys configured');
 
     let attempts = 0;
@@ -100,9 +96,14 @@ const generateContent = async (model, prompt) => {
                 model: model,
                 contents: prompt
             });
-        } catch (err) {
+        } catch (err: any) {
             // 429 = Too Many Requests
-            if (err.status === 429 || (err.response && err.response.status === 429)) {
+            const isRateLimit =
+                err.status === 429 ||
+                (err.response && err.response.status === 429) ||
+                (err.message && err.message.includes('429'));
+
+            if (isRateLimit) {
                 console.warn(`Key ...${key.slice(-4)} rate limited. Retrying with next key...`);
                 attempts++;
             } else {
@@ -140,7 +141,7 @@ const badWords = [
     'saala', 'sala', 'harami', 'lattu', 'lora'
 ];
 
-const findPreAnswer = (content) => {
+const findPreAnswer = (content: string): string | null => {
     const lowered = content.toLowerCase();
     for (const entry of preAnswers) {
         if (entry.patterns.some((re) => re.test(lowered))) {
@@ -151,21 +152,22 @@ const findPreAnswer = (content) => {
 };
 
 // Simple in-memory cache for prompt responses (messageText -> botReply)
-const responseCache = new Map();
+const responseCache = new Map<string, string>();
 const CACHE_LIMIT = 100;
 
 client.once(Events.ClientReady, (readyClient) => {
     console.log(`Logged in as ${readyClient.user.tag}`);
 });
 
-client.on('messageCreate', async (message) => {
+client.on('messageCreate', async (message: Message) => {
     // Ignore bot messages
     if (message.author.bot) return;
 
     // Check in-memory cache for repeated prompts
     const inputKey = message.content.trim().toLowerCase();
-    if (responseCache.has(inputKey)) {
-        await safeReply(message, responseCache.get(inputKey));
+    const cachedResponse = responseCache.get(inputKey);
+    if (cachedResponse) {
+        await safeReply(message, cachedResponse);
         return;
     }
 
@@ -174,22 +176,30 @@ client.on('messageCreate', async (message) => {
     const hasBadWords = badWords.some((w) => lowered.includes(w));
     if (hasBadWords) {
         try {
-            await message.delete();
-        } catch (err) {
-            console.error('Failed to delete message:', err);
+            if (message.deletable) {
+                await message.delete();
+            } else {
+                console.warn(`Could not delete bad word message from ${message.author.tag}: Message not deletable.`);
+            }
+        } catch (err: any) {
+            console.error('Failed to delete bad word message:', err);
         }
+
         try {
             await message.author.send('Please keep the chat respectful. Your message was removed.');
-        } catch (err) {
-            console.error('Failed to send DM:', err);
+        } catch (err: any) {
+            // Error code 50007: Cannot send messages to this user (DMs closed/blocked)
+            if (err.code === 50007) {
+                console.warn(`Could not DM user ${message.author.tag} (DMs closed).`);
+            } else {
+                console.error('Failed to send DM warning:', err);
+            }
         }
         return;
     }
 
     // Ignore messages not in the event channel (if configured)
     if (CHANNEL_ID && message.channel.id !== CHANNEL_ID) return;
-
-    let pending = null;
 
     try {
         // Pre-answered FAQs to avoid AI calls
@@ -198,7 +208,8 @@ client.on('messageCreate', async (message) => {
             responseCache.set(inputKey, preAnswer);
             if (responseCache.size > CACHE_LIMIT) {
                 // Remove oldest
-                responseCache.delete(responseCache.keys().next().value);
+                const oldestKey = responseCache.keys().next().value;
+                if (oldestKey) responseCache.delete(oldestKey);
             }
             await safeReply(message, preAnswer);
             return;
@@ -209,7 +220,8 @@ client.on('messageCreate', async (message) => {
             const mathMsg = "Hey! I'm Maya. I skip math/coding asks, but happy to chat event stuff or any chill topic—food, games, life vibes.";
             responseCache.set(inputKey, mathMsg);
             if (responseCache.size > CACHE_LIMIT) {
-                responseCache.delete(responseCache.keys().next().value);
+                const oldestKey = responseCache.keys().next().value;
+                if (oldestKey) responseCache.delete(oldestKey);
             }
             await safeReply(message, mathMsg);
             return;
@@ -225,7 +237,7 @@ Language mix: aim ~80% English, ~20% Nepali words/phrases (no Hindi), natural bl
 Formatting: use Discord Markdown (bold labels, '-' bullets, italics for side-notes), no code blocks.
 Only use the event data below; if unknown, say you don’t know yet but will update. Keep replies short, like DM with a friend.
 Do NOT answer math or coding questions—politely decline if asked.
-You know a lot about cooking. If asked for recipes or processes (especially Nepali food), give concise bullets for ingredients and short steps.
+You know a lot about cooking. Your favorite food is MOMO. ONLY provide recipes or processes if the user EXPLICITLY asks for them. Do not volunteer recipes just because food is mentioned. If asked, give concise bullets for ingredients and short steps.
 
 Event Days:
 ${Object.entries(eventData.days).map(([day, desc]) => `- **Day ${day}:** ${desc}`).join('\n')}
@@ -251,20 +263,34 @@ Answer concisely, polite, Discord-styled, and ONLY based on the event/program da
         const reply = response.text || "I can only answer about the Minecraft event/program.";
         responseCache.set(inputKey, reply);
         if (responseCache.size > CACHE_LIMIT) {
-            responseCache.delete(responseCache.keys().next().value);
+            const oldestKey = responseCache.keys().next().value;
+            if (oldestKey) responseCache.delete(oldestKey);
         }
         await safeReply(message, reply);
 
-    } catch (err) {
-        console.error(err);
-        if (err && err.status === 429) {
-            // Gemini rate limit: do not send any msg in Discord
+    } catch (err: any) {
+        // Check for rate limit errors (from generateContent or other sources)
+        const isRateLimit =
+            err.status === 429 ||
+            (err.response && err.response.status === 429) ||
+            (err.message && err.message.includes('429')) ||
+            (err.message && err.message.includes('quota'));
+
+        if (isRateLimit) {
+            console.warn('Gemini API rate limit reached. Ignoring message.');
             return;
         }
-        // On other errors, silently do nothing in chat.
+
+        console.error('Error handling message:', err);
     }
 });
 
-client.login(process.env.DISCORD_TOKEN).catch((err) => {
+const token = process.env.DISCORD_TOKEN;
+if (!token) {
+    console.error('DISCORD_TOKEN is not defined in the environment variables.');
+    process.exit(1);
+}
+
+client.login(token).catch((err) => {
     console.error('Failed to login to Discord:', err);
 });
