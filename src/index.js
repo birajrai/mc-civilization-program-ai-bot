@@ -76,11 +76,12 @@ fs.watchFile(eventDataPath, async () => {
 });
 
 // Gemini model names to try in order (fallback mechanism)
+// Using Gemini 2.5 Flash for best price-performance
 const GEMINI_MODELS = [
+    'gemini-2.5-flash',
+    'gemini-2.5-flash-lite',
     'gemini-2.0-flash-exp',
-    'gemini-1.5-flash-latest',
-    'gemini-1.5-flash-001',
-    'gemini-1.5-flash'
+    'gemini-2.0-flash-001'
 ];
 
 // Initialize Gemini AI client with key rotation
@@ -95,6 +96,9 @@ if (apiKeys.length === 0) {
 // Initialize clients once
 const genAIClients = apiKeys.map(key => new GoogleGenAI({ apiKey: key }));
 
+// Track which models have been successfully used (for logging)
+const loggedModels = new Set();
+
 const generateContent = async (model, prompt) => {
     if (genAIClients.length === 0) throw new Error('No API keys configured');
 
@@ -107,10 +111,14 @@ const generateContent = async (model, prompt) => {
         if (genAIClients.length === 1) {
             currentKeyIndex = 0;
         } else {
-            // Find an untried key
-            do {
-                currentKeyIndex = Math.floor(Math.random() * genAIClients.length);
-            } while (triedIndices.has(currentKeyIndex));
+            // Create array of untried indices and select randomly
+            const untriedIndices = [];
+            for (let i = 0; i < genAIClients.length; i++) {
+                if (!triedIndices.has(i)) {
+                    untriedIndices.push(i);
+                }
+            }
+            currentKeyIndex = untriedIndices[Math.floor(Math.random() * untriedIndices.length)];
         }
         
         triedIndices.add(currentKeyIndex);
@@ -323,9 +331,9 @@ Answer concisely, polite, Discord-styled, and ONLY based on the event/program da
                 response = await generateContent(modelName, prompt);
                 successModel = modelName;
                 // Log successful model on first use only
-                if (!response._modelLogged) {
+                if (!loggedModels.has(successModel)) {
                     console.log(`Successfully using Gemini model: ${successModel}`);
-                    response._modelLogged = true;
+                    loggedModels.add(successModel);
                 }
                 break; // Success, exit loop
             } catch (err) {

@@ -4,7 +4,7 @@ A Discord bot for the Minecraft Civilization program, powered by Google's Gemini
 
 ## Features
 
-- 🤖 AI-powered responses using Google Gemini 2.0
+- 🤖 AI-powered responses using Google Gemini 2.5 Flash
 - 📅 Event schedule and information management
 - 🔄 Hot-reloadable event data
 - 💬 Pre-answered FAQs for common questions
