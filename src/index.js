@@ -75,6 +75,14 @@ fs.watchFile(eventDataPath, async () => {
     }
 });
 
+// Gemini model names to try in order (fallback mechanism)
+const GEMINI_MODELS = [
+    'gemini-2.0-flash-exp',
+    'gemini-1.5-flash-latest',
+    'gemini-1.5-flash-001',
+    'gemini-1.5-flash'
+];
+
 // Initialize Gemini AI client with key rotation
 const apiKeys = process.env.GEMINI_API_KEYS
     ? process.env.GEMINI_API_KEYS.split(',').map(k => k.trim()).filter(k => k)
@@ -84,27 +92,25 @@ if (apiKeys.length === 0) {
     console.error('No GEMINI_API_KEYS or GEMINI_API_KEY found. AI features will fail.');
 }
 
-let keyIndex = 0;
-
 // Initialize clients once
 const genAIClients = apiKeys.map(key => new GoogleGenAI({ apiKey: key }));
 
 const generateContent = async (model, prompt) => {
     if (genAIClients.length === 0) throw new Error('No API keys configured');
 
-    let attempts = 0;
     const triedIndices = new Set();
     
     // Try each key at most once per request with random selection
-    while (attempts < genAIClients.length) {
+    while (triedIndices.size < genAIClients.length) {
         // Select a random key that hasn't been tried yet
         let currentKeyIndex;
         if (genAIClients.length === 1) {
             currentKeyIndex = 0;
         } else {
+            // Find an untried key
             do {
                 currentKeyIndex = Math.floor(Math.random() * genAIClients.length);
-            } while (triedIndices.has(currentKeyIndex) && triedIndices.size < genAIClients.length);
+            } while (triedIndices.has(currentKeyIndex));
         }
         
         triedIndices.add(currentKeyIndex);
@@ -130,7 +136,7 @@ const generateContent = async (model, prompt) => {
 
             if (isRateLimit) {
                 console.warn(`Key at index ${currentKeyIndex} rate limited. Retrying with next key...`);
-                attempts++;
+                // Continue to try next key
             } else if (isNotFound) {
                 console.error(`Model "${model}" not found. Error: ${err.message}`);
                 throw new Error(`Model "${model}" not found. The model may not be available in your region or with your API key. Please check https://ai.google.dev/gemini-api/docs for available models.`);
@@ -307,17 +313,20 @@ Schedule Message:
 User message: ${message.content}
 Answer concisely, polite, Discord-styled, and ONLY based on the event/program data.`;
 
-        // Use the correct model name for Gemini 2.0
         // Try multiple model names for compatibility
         let response;
-        const modelNames = ['gemini-2.0-flash-exp', 'gemini-1.5-flash-latest', 'gemini-1.5-flash-001', 'gemini-1.5-flash'];
         let lastError = null;
         let successModel = null;
         
-        for (const modelName of modelNames) {
+        for (const modelName of GEMINI_MODELS) {
             try {
                 response = await generateContent(modelName, prompt);
                 successModel = modelName;
+                // Log successful model on first use only
+                if (!response._modelLogged) {
+                    console.log(`Successfully using Gemini model: ${successModel}`);
+                    response._modelLogged = true;
+                }
                 break; // Success, exit loop
             } catch (err) {
                 lastError = err;
