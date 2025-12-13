@@ -1,18 +1,17 @@
-import { Client, Events, GatewayIntentBits, Partials, Message, TextChannel, DMChannel, NewsChannel } from 'discord.js';
+import { Client, Events, GatewayIntentBits, Partials } from 'discord.js';
 import { GoogleGenAI } from '@google/genai';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath, pathToFileURL } from 'url';
 import dotenv from 'dotenv';
 import { getPreAnswers } from './preAnswers.js';
-import { EventData } from './eventData.js';
 
 dotenv.config();
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-// We point to the compiled JS file for the dynamic reload to work in the build
-const eventDataPath = path.join(__dirname, 'eventData.ts');
+// Path to the event data file for dynamic reload
+const eventDataPath = path.join(__dirname, 'eventData.js');
 
 const CHANNEL_IDS = {
     rules: '1448585591406202880',
@@ -26,17 +25,15 @@ const LINKS = {
     scheduleMessage: 'https://discord.com/channels/1448006312553087048/1448588040212713567/1448602421537542277'
 };
 
-const isMathOrCode = (content: string): boolean => {
+const isMathOrCode = (content) => {
     const lowered = content.toLowerCase();
     return /math|calculate|calculation|equation|integral|derivative|algebra|geometry|calculus|solve\s+\d|\d+\s*[+\-*/^]\s*\d+/i.test(lowered)
         || /code|program|script|algorithm|debug|bug|compile|javascript|python|java|c\+\+|c#|rust|typescript|ts|js|go\b|golang/i.test(lowered);
 };
 
-const loadEventData = async (): Promise<EventData> => {
+const loadEventData = async () => {
     try {
-        // In development with ts-node, this might be tricky, but for production build it works.
-        // We check if the file exists, if not we might be in TS source mode without build.
-        // But let's assume standard usage.
+        // Dynamic import with cache busting to allow hot reloading
         const url = `${pathToFileURL(eventDataPath).href}?t=${Date.now()}`;
         const mod = await import(url);
         return mod.default || mod.eventData || {};
@@ -46,7 +43,7 @@ const loadEventData = async (): Promise<EventData> => {
     }
 };
 
-const safeReply = async (target: Message, text: string): Promise<Message | null> => {
+const safeReply = async (target, text) => {
     try {
         return await target.reply(text);
     } catch (err) {
@@ -56,7 +53,7 @@ const safeReply = async (target: Message, text: string): Promise<Message | null>
 };
 
 // Load local event memory
-let eventData: EventData = await loadEventData();
+let eventData = await loadEventData();
 let preAnswers = getPreAnswers(eventData, CHANNEL_IDS, LINKS);
 
 // Hot reload on file change
@@ -84,7 +81,7 @@ let keyIndex = 0;
 // Initialize clients once
 const genAIClients = apiKeys.map(key => new GoogleGenAI({ apiKey: key }));
 
-const generateContent = async (model: string, prompt: string) => {
+const generateContent = async (model, prompt) => {
     if (genAIClients.length === 0) throw new Error('No API keys configured');
 
     let attempts = 0;
@@ -99,7 +96,7 @@ const generateContent = async (model: string, prompt: string) => {
                 model: model,
                 contents: [{ role: 'user', parts: [{ text: prompt }] }]
             });
-        } catch (err: any) {
+        } catch (err) {
             // 429 = Too Many Requests
             const isRateLimit =
                 err.status === 429 ||
@@ -145,7 +142,7 @@ const badWords = [
     'saala', 'sala', 'harami', 'lattu', 'lora'
 ];
 
-const findPreAnswer = (content: string): string | null => {
+const findPreAnswer = (content) => {
     const lowered = content.toLowerCase();
     for (const entry of preAnswers) {
         if (entry.patterns.some((re) => re.test(lowered))) {
@@ -156,14 +153,14 @@ const findPreAnswer = (content: string): string | null => {
 };
 
 // Simple in-memory cache for prompt responses (messageText -> botReply)
-const responseCache = new Map<string, string>();
+const responseCache = new Map();
 const CACHE_LIMIT = 100;
 
 client.once(Events.ClientReady, (readyClient) => {
     console.log(`Logged in as ${readyClient.user.tag}`);
 });
 
-client.on('messageCreate', async (message: Message) => {
+client.on('messageCreate', async (message) => {
     // Ignore bot messages
     if (message.author.bot) return;
 
@@ -185,13 +182,13 @@ client.on('messageCreate', async (message: Message) => {
             } else {
                 console.warn(`Could not delete bad word message from ${message.author.tag}: Message not deletable.`);
             }
-        } catch (err: any) {
+        } catch (err) {
             console.error('Failed to delete bad word message:', err);
         }
 
         try {
             await message.author.send('Please keep the chat respectful. Your message was removed.');
-        } catch (err: any) {
+        } catch (err) {
             // Error code 50007: Cannot send messages to this user (DMs closed/blocked)
             if (err.code === 50007) {
                 console.warn(`Could not DM user ${message.author.tag} (DMs closed).`);
@@ -239,7 +236,7 @@ You are Maya, a friendly, chill Nepali assistant for a Minecraft event. You are 
 Tone: polite, warm, GenZ-friendly, no rude slang. Keep it concise.
 Language mix: aim ~80% English, ~20% Nepali words/phrases (no Hindi), natural blend.
 Formatting: use Discord Markdown (bold labels, '-' bullets, italics for side-notes), no code blocks.
-Only use the event data below; if unknown, say you don’t know yet but will update. Keep replies short, like DM with a friend.
+Only use the event data below; if unknown, say you don't know yet but will update. Keep replies short, like DM with a friend.
 Do NOT answer math or coding questions—politely decline if asked.
 You know a lot about cooking. Your favorite food is MOMO. ONLY provide recipes or processes if the user EXPLICITLY asks for them. Do not volunteer recipes just because food is mentioned. If asked, give concise bullets for ingredients and short steps.
 
@@ -273,7 +270,7 @@ Answer concisely, polite, Discord-styled, and ONLY based on the event/program da
         }
         await safeReply(message, reply);
 
-    } catch (err: any) {
+    } catch (err) {
         // Check for rate limit errors (from generateContent or other sources)
         const isRateLimit =
             err.status === 429 ||

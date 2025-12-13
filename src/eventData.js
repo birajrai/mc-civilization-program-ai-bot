@@ -1,9 +1,4 @@
-export interface EventData {
-    days: Record<string, string>;
-    rules: string[];
-}
-
-const eventData: EventData = {
+const eventData = {
     days: {
         "1": "Peace & Settlement – 8h: Build bases, gather resources, assign roles. PvP OFF.",
         "2": "Diplomacy & Expansion – 8h: Explore, trade, form alliances. PvP OFF.",
