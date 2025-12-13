@@ -1,32 +1,11 @@
-import { EventData } from './eventData.js';
-
-interface PreAnswer {
-    patterns: RegExp[];
-    answer: string;
-}
-
-interface ChannelIds {
-    rules?: string;
-    schedule?: string;
-    registration?: string;
-    poll?: string;
-    announcement?: string;
-    [key: string]: string | undefined;
-}
-
-interface Links {
-    scheduleMessage?: string;
-    [key: string]: string | undefined;
-}
-
-export function getPreAnswers(eventData: Partial<EventData> = {}, channels: ChannelIds = {}, links: Links = {}): PreAnswer[] {
+export function getPreAnswers(eventData = {}, channels = {}, links = {}) {
     const days = eventData.days || {};
     const rules = eventData.rules || [];
     const ruleList = rules.length
         ? rules.map((r) => `- ${r}`).join('\n')
         : '- Rules will be announced soon.';
 
-    const withNepaliHint = (text: string): string => {
+    const withNepaliHint = (text) => {
         // Keep responses primarily English; ~20% chance to add a short Nepali-English hint (Latin only).
         if (Math.random() < 0.2) {
             return `${text}\n*update bhayo bhane chadai drop gardinchu*`;
@@ -89,7 +68,7 @@ export function getPreAnswers(eventData: Partial<EventData> = {}, channels: Chan
         },
         {
             patterns: [/voice/i, /\bvc\b/i, /discord call/i],
-            answer: withNepaliHint('**Voice/VC:** Hop into event voice channels when staff says. Keep it chill. 🎙️')
+            answer: withNepaliHint('**Voice/VC:** Hop into event voice channels when staff says. Keep it chill. ��️')
         },
         {
             patterns: [/timezone/i, /time zone/i],
@@ -97,7 +76,7 @@ export function getPreAnswers(eventData: Partial<EventData> = {}, channels: Chan
         },
         {
             patterns: [/end time/i, /when.*end/i, /how long/i, /duration/i],
-            answer: withNepaliHint('**Duration/End:** Will be shared with the start schedule. We’ll keep you posted. 🗓️')
+            answer: withNepaliHint("**Duration/End:** Will be shared with the start schedule. We'll keep you posted. 🗓️")
         }
     ];
 }
