@@ -112,12 +112,10 @@ const generateContent = async (model, prompt) => {
             currentKeyIndex = 0;
         } else {
             // Create array of untried indices and select randomly
-            const untriedIndices = [];
-            for (let i = 0; i < genAIClients.length; i++) {
-                if (!triedIndices.has(i)) {
-                    untriedIndices.push(i);
-                }
-            }
+            const untriedIndices = Array.from(
+                { length: genAIClients.length },
+                (_, i) => i
+            ).filter(i => !triedIndices.has(i));
             currentKeyIndex = untriedIndices[Math.floor(Math.random() * untriedIndices.length)];
         }
         
@@ -200,10 +198,15 @@ const CACHE_LIMIT = 100;
 // Track questions asked by users
 let questionCount = 0;
 
+// Discord Activity Types
+const ActivityType = {
+    LISTENING: 2
+};
+
 // Update bot status every time question count changes
 const updateBotStatus = () => {
     if (client.user) {
-        client.user.setActivity(`${questionCount} questions`, { type: 2 }); // Type 2 = LISTENING
+        client.user.setActivity(`${questionCount} questions`, { type: ActivityType.LISTENING });
     }
 };
 
@@ -347,8 +350,9 @@ Answer concisely, polite, Discord-styled, and ONLY based on the event/program da
             }
         }
         
-        if (!response && lastError) {
-            throw lastError; // All models failed
+        // If we reach here without a response, throw the last error
+        if (!response) {
+            throw lastError || new Error('Failed to get response from any Gemini model');
         }
 
         const replyText = response.text;
