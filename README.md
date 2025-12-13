@@ -4,13 +4,14 @@ A Discord bot for the Minecraft Civilization program, powered by Google's Gemini
 
 ## Features
 
-- 🤖 AI-powered responses using Google Gemini
+- 🤖 AI-powered responses using Google Gemini 2.0
 - 📅 Event schedule and information management
 - 🔄 Hot-reloadable event data
 - 💬 Pre-answered FAQs for common questions
 - 🛡️ Profanity filtering
-- 🔑 API key rotation for rate limit handling
+- 🔑 Multiple API key support with random selection for rate limit handling
 - 📝 Caching for repeated queries
+- 📊 Bot status showing total questions answered
 
 ## Prerequisites
 
@@ -40,7 +41,23 @@ cp example.env .env
 ```env
 DISCORD_TOKEN=your_discord_bot_token
 GEMINI_API_KEY=your_gemini_api_key
+# OR use multiple keys for better rate limit handling:
+GEMINI_API_KEYS=key1,key2,key3
 EVENT_CHANNEL_ID=your_event_channel_id
+```
+
+### Multiple API Keys
+
+To avoid rate limits, you can configure multiple Gemini API keys. The bot will randomly select from available keys for each request, automatically trying another key if one is rate-limited.
+
+Set multiple keys in your `.env` file:
+```env
+GEMINI_API_KEYS=key1,key2,key3,key4
+```
+
+Or use a single key:
+```env
+GEMINI_API_KEY=your_single_key
 ```
 
 ## Usage

@@ -308,7 +308,29 @@ User message: ${message.content}
 Answer concisely, polite, Discord-styled, and ONLY based on the event/program data.`;
 
         // Use the correct model name for Gemini 2.0
-        const response = await generateContent('gemini-2.0-flash-exp', prompt);
+        // Try multiple model names for compatibility
+        let response;
+        const modelNames = ['gemini-2.0-flash-exp', 'gemini-1.5-flash-latest', 'gemini-1.5-flash-001'];
+        let lastError = null;
+        
+        for (const modelName of modelNames) {
+            try {
+                response = await generateContent(modelName, prompt);
+                break; // Success, exit loop
+            } catch (err) {
+                lastError = err;
+                if (err.message && err.message.includes('not found')) {
+                    console.log(`Model ${modelName} not available, trying next...`);
+                    continue;
+                } else {
+                    throw err; // Other error, throw immediately
+                }
+            }
+        }
+        
+        if (!response && lastError) {
+            throw lastError; // All models failed
+        }
 
         const replyText = response.text;
         const reply = replyText || "I can only answer about the Minecraft event/program.";
