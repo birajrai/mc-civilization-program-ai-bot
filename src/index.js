@@ -93,11 +93,22 @@ const generateContent = async (model, prompt) => {
     if (genAIClients.length === 0) throw new Error('No API keys configured');
 
     let attempts = 0;
-    // Try each key at most once per request
+    const triedIndices = new Set();
+    
+    // Try each key at most once per request with random selection
     while (attempts < genAIClients.length) {
-        const currentKeyIndex = keyIndex;
+        // Select a random key that hasn't been tried yet
+        let currentKeyIndex;
+        if (genAIClients.length === 1) {
+            currentKeyIndex = 0;
+        } else {
+            do {
+                currentKeyIndex = Math.floor(Math.random() * genAIClients.length);
+            } while (triedIndices.has(currentKeyIndex) && triedIndices.size < genAIClients.length);
+        }
+        
+        triedIndices.add(currentKeyIndex);
         const ai = genAIClients[currentKeyIndex];
-        keyIndex = (keyIndex + 1) % genAIClients.length; // Rotate
 
         try {
             return await ai.models.generateContent({
@@ -105,18 +116,26 @@ const generateContent = async (model, prompt) => {
                 contents: [{ role: 'user', parts: [{ text: prompt }] }]
             });
         } catch (err) {
-            // 429 = Too Many Requests
+            // Handle both rate limit and not found errors
             const isRateLimit =
                 err.status === 429 ||
                 (err.response && err.response.status === 429) ||
                 (err.message && err.message.includes('429'));
+            
+            const isNotFound = 
+                err.status === 404 ||
+                (err.response && err.response.status === 404) ||
+                (err.message && err.message.includes('404')) ||
+                (err.message && err.message.includes('not found'));
 
             if (isRateLimit) {
-                // Mask key for logging
                 console.warn(`Key at index ${currentKeyIndex} rate limited. Retrying with next key...`);
                 attempts++;
+            } else if (isNotFound) {
+                console.error(`Model not found error: ${err.message}`);
+                throw new Error(`Model "${model}" not found. Please check the model name.`);
             } else {
-                throw err; // Not a rate limit, rethrow
+                throw err; // Not a rate limit or not found, rethrow
             }
         }
     }
@@ -164,8 +183,19 @@ const findPreAnswer = (content) => {
 const responseCache = new Map();
 const CACHE_LIMIT = 100;
 
+// Track questions asked by users
+let questionCount = 0;
+
+// Update bot status every time question count changes
+const updateBotStatus = () => {
+    if (client.user) {
+        client.user.setActivity(`${questionCount} questions`, { type: 2 }); // Type 2 = LISTENING
+    }
+};
+
 client.once(Events.ClientReady, (readyClient) => {
     console.log(`Logged in as ${readyClient.user.tag}`);
+    updateBotStatus();
 });
 
 client.on('messageCreate', async (message) => {
@@ -220,6 +250,11 @@ client.on('messageCreate', async (message) => {
                 const oldestKey = responseCache.keys().next().value;
                 if (oldestKey) responseCache.delete(oldestKey);
             }
+            
+            // Increment question count and update bot status
+            questionCount++;
+            updateBotStatus();
+            
             await safeReply(message, preAnswer);
             return;
         }
@@ -232,6 +267,11 @@ client.on('messageCreate', async (message) => {
                 const oldestKey = responseCache.keys().next().value;
                 if (oldestKey) responseCache.delete(oldestKey);
             }
+            
+            // Increment question count and update bot status
+            questionCount++;
+            updateBotStatus();
+            
             await safeReply(message, mathMsg);
             return;
         }
@@ -267,7 +307,8 @@ Schedule Message:
 User message: ${message.content}
 Answer concisely, polite, Discord-styled, and ONLY based on the event/program data.`;
 
-        const response = await generateContent('gemini-1.5-flash', prompt);
+        // Use the correct model name for Gemini 2.0
+        const response = await generateContent('gemini-2.0-flash-exp', prompt);
 
         const replyText = response.text;
         const reply = replyText || "I can only answer about the Minecraft event/program.";
@@ -276,6 +317,11 @@ Answer concisely, polite, Discord-styled, and ONLY based on the event/program da
             const oldestKey = responseCache.keys().next().value;
             if (oldestKey) responseCache.delete(oldestKey);
         }
+        
+        // Increment question count and update bot status
+        questionCount++;
+        updateBotStatus();
+        
         await safeReply(message, reply);
 
     } catch (err) {
