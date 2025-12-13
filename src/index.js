@@ -132,8 +132,8 @@ const generateContent = async (model, prompt) => {
                 console.warn(`Key at index ${currentKeyIndex} rate limited. Retrying with next key...`);
                 attempts++;
             } else if (isNotFound) {
-                console.error(`Model not found error: ${err.message}`);
-                throw new Error(`Model "${model}" not found. Please check the model name.`);
+                console.error(`Model "${model}" not found. Error: ${err.message}`);
+                throw new Error(`Model "${model}" not found. The model may not be available in your region or with your API key. Please check https://ai.google.dev/gemini-api/docs for available models.`);
             } else {
                 throw err; // Not a rate limit or not found, rethrow
             }
@@ -310,12 +310,14 @@ Answer concisely, polite, Discord-styled, and ONLY based on the event/program da
         // Use the correct model name for Gemini 2.0
         // Try multiple model names for compatibility
         let response;
-        const modelNames = ['gemini-2.0-flash-exp', 'gemini-1.5-flash-latest', 'gemini-1.5-flash-001'];
+        const modelNames = ['gemini-2.0-flash-exp', 'gemini-1.5-flash-latest', 'gemini-1.5-flash-001', 'gemini-1.5-flash'];
         let lastError = null;
+        let successModel = null;
         
         for (const modelName of modelNames) {
             try {
                 response = await generateContent(modelName, prompt);
+                successModel = modelName;
                 break; // Success, exit loop
             } catch (err) {
                 lastError = err;
