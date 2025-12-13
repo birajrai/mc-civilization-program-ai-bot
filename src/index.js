@@ -10,7 +10,7 @@ dotenv.config();
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-// We point to the compiled JS file for the dynamic reload to work in the build
+// Path to the event data file for dynamic reload
 const eventDataPath = path.join(__dirname, 'eventData.js');
 
 const CHANNEL_IDS = {
@@ -33,9 +33,7 @@ const isMathOrCode = (content) => {
 
 const loadEventData = async () => {
     try {
-        // In development with ts-node, this might be tricky, but for production build it works.
-        // We check if the file exists, if not we might be in TS source mode without build.
-        // But let's assume standard usage.
+        // Dynamic import with cache busting to allow hot reloading
         const url = `${pathToFileURL(eventDataPath).href}?t=${Date.now()}`;
         const mod = await import(url);
         return mod.default || mod.eventData || {};
