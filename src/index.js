@@ -75,6 +75,15 @@ fs.watchFile(eventDataPath, async () => {
     }
 });
 
+// Gemini model names to try in order (fallback mechanism)
+// Using Gemini 2.5 Flash for best price-performance
+const GEMINI_MODELS = [
+    'gemini-2.5-flash',
+    'gemini-2.5-flash-lite',
+    'gemini-2.0-flash-exp',
+    'gemini-2.0-flash-001'
+];
+
 // Initialize Gemini AI client with key rotation
 const apiKeys = process.env.GEMINI_API_KEYS
     ? process.env.GEMINI_API_KEYS.split(',').map(k => k.trim()).filter(k => k)
@@ -84,20 +93,34 @@ if (apiKeys.length === 0) {
     console.error('No GEMINI_API_KEYS or GEMINI_API_KEY found. AI features will fail.');
 }
 
-let keyIndex = 0;
-
 // Initialize clients once
 const genAIClients = apiKeys.map(key => new GoogleGenAI({ apiKey: key }));
+
+// Track which models have been successfully used (for logging)
+const loggedModels = new Set();
 
 const generateContent = async (model, prompt) => {
     if (genAIClients.length === 0) throw new Error('No API keys configured');
 
-    let attempts = 0;
-    // Try each key at most once per request
-    while (attempts < genAIClients.length) {
-        const currentKeyIndex = keyIndex;
+    const triedIndices = new Set();
+    
+    // Try each key at most once per request with random selection
+    while (triedIndices.size < genAIClients.length) {
+        // Select a random key that hasn't been tried yet
+        let currentKeyIndex;
+        if (genAIClients.length === 1) {
+            currentKeyIndex = 0;
+        } else {
+            // Create array of untried indices and select randomly
+            const untriedIndices = Array.from(
+                { length: genAIClients.length },
+                (_, i) => i
+            ).filter(i => !triedIndices.has(i));
+            currentKeyIndex = untriedIndices[Math.floor(Math.random() * untriedIndices.length)];
+        }
+        
+        triedIndices.add(currentKeyIndex);
         const ai = genAIClients[currentKeyIndex];
-        keyIndex = (keyIndex + 1) % genAIClients.length; // Rotate
 
         try {
             return await ai.models.generateContent({
@@ -105,18 +128,26 @@ const generateContent = async (model, prompt) => {
                 contents: [{ role: 'user', parts: [{ text: prompt }] }]
             });
         } catch (err) {
-            // 429 = Too Many Requests
+            // Handle both rate limit and not found errors
             const isRateLimit =
                 err.status === 429 ||
                 (err.response && err.response.status === 429) ||
                 (err.message && err.message.includes('429'));
+            
+            const isNotFound = 
+                err.status === 404 ||
+                (err.response && err.response.status === 404) ||
+                (err.message && err.message.includes('404')) ||
+                (err.message && err.message.includes('not found'));
 
             if (isRateLimit) {
-                // Mask key for logging
                 console.warn(`Key at index ${currentKeyIndex} rate limited. Retrying with next key...`);
-                attempts++;
+                // Continue to try next key
+            } else if (isNotFound) {
+                console.error(`Model "${model}" not found. Error: ${err.message}`);
+                throw new Error(`Model "${model}" not found. The model may not be available in your region or with your API key. Please check https://ai.google.dev/gemini-api/docs for available models.`);
             } else {
-                throw err; // Not a rate limit, rethrow
+                throw err; // Not a rate limit or not found, rethrow
             }
         }
     }
@@ -164,8 +195,24 @@ const findPreAnswer = (content) => {
 const responseCache = new Map();
 const CACHE_LIMIT = 100;
 
+// Track questions asked by users
+let questionCount = 0;
+
+// Discord Activity Types
+const ActivityType = {
+    LISTENING: 2
+};
+
+// Update bot status every time question count changes
+const updateBotStatus = () => {
+    if (client.user) {
+        client.user.setActivity(`${questionCount} questions`, { type: ActivityType.LISTENING });
+    }
+};
+
 client.once(Events.ClientReady, (readyClient) => {
     console.log(`Logged in as ${readyClient.user.tag}`);
+    updateBotStatus();
 });
 
 client.on('messageCreate', async (message) => {
@@ -220,6 +267,11 @@ client.on('messageCreate', async (message) => {
                 const oldestKey = responseCache.keys().next().value;
                 if (oldestKey) responseCache.delete(oldestKey);
             }
+            
+            // Increment question count and update bot status
+            questionCount++;
+            updateBotStatus();
+            
             await safeReply(message, preAnswer);
             return;
         }
@@ -232,6 +284,11 @@ client.on('messageCreate', async (message) => {
                 const oldestKey = responseCache.keys().next().value;
                 if (oldestKey) responseCache.delete(oldestKey);
             }
+            
+            // Increment question count and update bot status
+            questionCount++;
+            updateBotStatus();
+            
             await safeReply(message, mathMsg);
             return;
         }
@@ -267,7 +324,36 @@ Schedule Message:
 User message: ${message.content}
 Answer concisely, polite, Discord-styled, and ONLY based on the event/program data.`;
 
-        const response = await generateContent('gemini-1.5-flash', prompt);
+        // Try multiple model names for compatibility
+        let response;
+        let lastError = null;
+        let successModel = null;
+        
+        for (const modelName of GEMINI_MODELS) {
+            try {
+                response = await generateContent(modelName, prompt);
+                successModel = modelName;
+                // Log successful model on first use only
+                if (!loggedModels.has(successModel)) {
+                    console.log(`Successfully using Gemini model: ${successModel}`);
+                    loggedModels.add(successModel);
+                }
+                break; // Success, exit loop
+            } catch (err) {
+                lastError = err;
+                if (err.message && err.message.includes('not found')) {
+                    console.log(`Model ${modelName} not available, trying next...`);
+                    continue;
+                } else {
+                    throw err; // Other error, throw immediately
+                }
+            }
+        }
+        
+        // If we reach here without a response, throw the last error
+        if (!response) {
+            throw lastError || new Error('Failed to get response from any Gemini model');
+        }
 
         const replyText = response.text;
         const reply = replyText || "I can only answer about the Minecraft event/program.";
@@ -276,6 +362,11 @@ Answer concisely, polite, Discord-styled, and ONLY based on the event/program da
             const oldestKey = responseCache.keys().next().value;
             if (oldestKey) responseCache.delete(oldestKey);
         }
+        
+        // Increment question count and update bot status
+        questionCount++;
+        updateBotStatus();
+        
         await safeReply(message, reply);
 
     } catch (err) {
